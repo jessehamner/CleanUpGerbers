@@ -1,5 +1,5 @@
 # CleanUpGerbers
-Renames Gerber files for one of three fab houses. Deletes GPI files.
+Renames Gerber files for one of three PCB fab houses. Zips the appropriate files together. Deletes GPI files.
 
 <h2>Introduction</h2>
 
@@ -23,7 +23,7 @@ My take on it is this: when you're tired, or distracted, or whatever, you're pro
 
 <h2>How to use the script</h2>
 
-CAM files typically will use some filename stub, plus maybe a descriptor (like <tt>bottomsilkscreen</tt>) and a file suffix, for each layer of the PCB set. This script asks you to tell it the stub, and either assumes that you're using OSHPark's script and naming conventions, or else you're using OSHPark's script and someone <i>else's</i> naming conventions (currently only DirtyPCBs and SeeedStudio are included). 
+CAM files typically will use some filename stub, plus maybe a descriptor (like <b><tt>bottomsilkscreen</tt></b>) and a file suffix, for each layer of the PCB set. This script asks you to tell it the stub, and either assumes that you're using OSHPark's script and naming conventions, or else you're using OSHPark's script and someone <i>else's</i> naming conventions (currently only DirtyPCBs and SeeedStudio are included). 
 
 Example:
 
@@ -37,5 +37,8 @@ If you're going to use SeeedStudio, you would say, instead,
 
 (Yeah, I was really lazy with the argument parser)
 
-And you'll get a custom zip file for SeeedStudio. In practice, the only difference for a two-layer board is that the Excellon drills file suffix is <tt>.TXT</tt> instead of <tt>.XLN</tt> -- but the possibility exists that other standards might exist, so I made the script capable of handling those in the future, if desired.
+And you'll get a custom zip file for SeeedStudio. In practice, the only difference for a two-layer board is that the Excellon drills file suffix is <b><tt>.TXT</tt></b> instead of <b><tt>.XLN</tt></b> -- but the possibility exists that other standards might exist, so I made the script capable of handling those in the future, if desired.
 
+<H2>Disclaimer</H2>
+
+This code isn't magical. It's not elegant (though elegant programming in <b><tt>bash</tt></b>, I submit, ain't easy)
