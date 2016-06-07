@@ -41,4 +41,6 @@ And you'll get a custom zip file for SeeedStudio. In practice, the only differen
 
 <H2>Disclaimer</H2>
 
-This code isn't magical. It's not elegant (though elegant programming in <b><tt>bash</tt></b>, I submit, ain't easy)
+This code isn't elegant (though elegant programming in <b><tt>bash</tt></b>, I submit, ain't easy). It's pretty easy to read, and might be a useful introduction to a few elements of programming bash, but that's not why I wrote it. 
+
+Further, you use this code at your own risk. I wrote it because it's useful to me. I provide it here because it might be useful to you. I have used the script enough to say that it works, but errors creep in and the script has changed since I sent a bunch of Gerbers off to the fab house (as of this writing, that's a few days ago). So please be careful. 
