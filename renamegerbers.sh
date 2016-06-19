@@ -93,6 +93,12 @@ ${THISFILE} FortyTwo
 # results and only you are responsible for ensuring that the files work for the 
 # fab to which you are sending the files.
 #
+# The script also halts if it cannot find each of the required *original*
+# (not-renamed) file layers from the Gerber file set that the script
+# expects to find. To override this default, use the -zz option.
+#
+# Ignore missing files for the zip: -zz
+# 
 # This script works on Mac OS X. It should work on Linux. If you're using it
 # on Windows, then it's up to you to make it work. ;-)
 #
@@ -113,6 +119,9 @@ MINPARAMS=1
 # Later the script will compress (zip) the files with the set of file names
 # stored in this string variable:
 ZIP=""
+
+# User friendly info string #1:
+WHODOIUSE="No command line argument for drills file suffix. Assuming OSHPark."
 
 ###########################################################
 # Work with the command line arguments:
@@ -138,12 +147,22 @@ fi
 if [ -n "$1" ]                  # Tested variable is quoted.
 then
     echo "Parameter #1 is $1"   # Need quotes to escape the hash (#) symbol
-    echo""
+fi 
+
+if [ -n "$2" ]                  # Tested variable is quoted.
+then
+    echo "Parameter #2 is $2"   # Need quotes to escape the hash (#) symbol
+fi 
+
+if [ -n "$3" ]                  # Tested variable is quoted.
+then
+    echo "Parameter #3 is $3"   # Need quotes to escape the hash (#) symbol
 fi 
 
 # Provide help if there's no argument:
 if [ "$1" = "" ] 
 then
+    echo""
     STUB="FortyTwo"
     printf '%s\n' "${HELP}"
     exit
@@ -151,35 +170,17 @@ else
 
 # TODO -- note this sed doesn't work for "FILENAME.someotherdescription.QQQ"
     C=`echo $1 | sed 's/\.[a-zA-Z]\{0,3\}$//'`
-    echo "Removing the file descriptor suffix gets: ${C}"
+#    echo "Removing the file descriptor suffix gets: ${C}"
     Q=`echo ${C} | sed 's/\.[a-zA-Z0-9]*$//' `
-    echo "Removing any file description following a period gets: ${Q}"
+#    echo "Removing any file description following a period gets: ${Q}"
     STUB=${Q}
 fi
 
 # Does user want to specify a fab house?
 
-if [ "$2" = "" ] 
+if [ "$2" = "-s" -o "$3" = "-s" ]
 then
-    echo""
-    echo "==================================================================="
-    echo " No command line argument for drills file suffix. Assuming OSHPark."
-    echo "==================================================================="
-    echo""
-    DRILLS="XLN"
-
-#   LAYERS is the list of file names created by the OSHPark CAM file. 
-#   SUFF is the list of file suffixes required by OSHPark's upload regime.
-    LAYERS=(toplayer boardoutline bottomsilkscreen topsilkscreen \
-bottomsoldermask topsoldermask bottomlayer tcream)
-    SUFF=(GTL GKO GBO GTO GBS GTS GBL TCR )
-    FAB="oshpark"
-    fi
-
-if [ "$2" = "-s" ]
-then
-    echo""
-    echo "User selected SeeedStudio file suffix conventions."
+    WHODOIUSE="User selected SeeedStudio file suffix conventions."
     DRILLS="TXT"
 #   LAYERS is the list of file names created by the OSHPark CAM file. 
 #   SUFF is the list of file suffixes required by SeeedStudio's upload regime.
@@ -189,10 +190,9 @@ bottomsoldermask topsoldermask bottomlayer tcream)
     FAB="seeedstudio"
 fi
 
-if [ "$2" = "-o" ]
+if [ "$2" = "-o" -o "$3" = "-o" ]
 then
-    echo""
-    echo "User selected OSHPark file suffix conventions."
+    WHODOIUSE="User selected OSHPark file suffix conventions."
     DRILLS="XLN"
 
 #   LAYERS is the list of file names created by the OSHPark CAM file. 
@@ -203,10 +203,9 @@ bottomsoldermask topsoldermask bottomlayer tcream)
     FAB="oshpark"
 fi
 
-if [ "$2" = "-d" ]
+if [ "$2" = "-d" -o "$3" = "-d" ]
 then
-    echo""
-    echo "User selected DirtyPCBs (Dangerous Prototypes) file suffix conventions."
+    WHODOIUSE="User selected DirtyPCBs (Dangerous Prototypes) file suffix conventions."
     DRILLS="TXT"
 
 #   LAYERS is the list of file names created by the OSHPark CAM file. 
@@ -217,14 +216,49 @@ bottomsoldermask topsoldermask bottomlayer tcream )
     FAB="dirtypcbs"
 fi
 
+
+if [ "$3" = "-zz" -o "$2" = "-zz" ]
+then
+    RUNANYWAY=1
+    RUNTEXT="User has selected 'keep running' setting; script won't 
+stop if there is a missing file in the required set of 
+Gerbers."
+else
+    RUNANYWAY=0
+    RUNTEXT="User has not chosen 'keep running' setting -- the script 
+will halt if it cannot find one of the required Gerber files."
+fi
+
+
+if [ "${FAB}" = "" -o "$2" = "" ] 
+then
+    DRILLS="XLN"
+    FAB="oshpark"
+    LAYERS=(toplayer boardoutline bottomsilkscreen topsilkscreen \
+bottomsoldermask topsoldermask bottomlayer tcream)
+    SUFF=(GTL GKO GBO GTO GBS GTS GBL TCR )
+fi
+
+echo""
+echo "==================================================================="
+echo""
+echo "${RUNTEXT}"
+echo ""
+echo "${WHODOIUSE}"
 echo""
 echo "Using ${STUB} for file names."
 echo "Will use ${DRILLS} as the suffix for the Excellon drills file."
+echo""
+echo "==================================================================="
 echo""
 
 ###########################################################
 # Rename files and remove useless (gpi) files:
 ###########################################################
+
+echo "Renaming PCB layers:"
+echo "----------------------------------"
+echo""
 
 # could use `seq` here, but nah:
 for ((i=0; i < ${#LAYERS[*]} ; i++)); do
@@ -239,21 +273,25 @@ for ((i=0; i < ${#LAYERS[*]} ; i++)); do
 
 # Curse you, spaces in filenames...
 
+# Rename files to a useful stub and suffix:
     if [ -e "${N}.ger" ]
     then
-        echo "Going to rename ${N}.ger to ${O};"
+        echo "Renaming ${N}.ger to ${O};"
         mv "${N}.ger" "${O}"
-    else
+    elif [ ${RUNANYWAY} == 1  ] 
+    then 
+        echo "File ${N}.ger not found; continuing anyway."
+    else 
         echo "File ${N}.ger not found!"
         exit
     fi
     
+# It's highly unlikely anyone wants GPI files:
     if [ -e "${N}.gpi" ]
     then
         echo "deleting file \"${N}.gpi\""
         rm "${N}.gpi"
     else
-        echo""
         echo "No file ${N}.gpi to remove."
     fi
     echo""
@@ -262,7 +300,11 @@ done
 # Seeedstudio/DirtyPCBs and OSHPark use different suffixes for the 
 # Excellon drills file, and the CAM file names the stub differently too.
 
-echo "Lastly, the drill files:"
+echo "Renaming the drills file:"
+echo "----------------------------------"
+echo""
+
+
 D="${STUB}.drills.xln"
 DRI="${STUB}.drills.dri"
 
@@ -279,7 +321,7 @@ then
     echo "Removing ${DRI} "
     rm "${DRI}"
 else
-    echo "No file \"${DRI}\" to delete."
+    echo "No file ${DRI} to delete."
 fi
 
 echo""
@@ -322,3 +364,4 @@ echo""
 exit
 
 #<EOF>
+
