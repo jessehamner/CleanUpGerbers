@@ -27,15 +27,14 @@ CAM files typically will use some filename stub, plus maybe a descriptor (like <
 
 Example:
 
-```./renamegerbers.sh FortyTwo```
+```./renamegerbers.sh -n FortyTwo```
 
 And without additional CLI switches, you'll get an OSHPark-friendly zip file, plus a cleaner directory (OSHPark doesn't need or want you to upload the GPI files, which are a file format for <a href="https://en.wikipedia.org/wiki/Photoplotter">photoplotters</a>). 
 
 If you're going to use SeeedStudio, you would say, instead, 
 
-```./renamegerbers.sh FortyTwo -s ```
+```./renamegerbers.sh -n FortyTwo -s ```
 
-(Yeah, I was really lazy with the argument parser)
 
 And you'll get a custom zip file for SeeedStudio. In practice, the only difference for a two-layer board is that the Excellon drills file suffix is <b><tt>.TXT</tt></b> instead of <b><tt>.XLN</tt></b> -- but the possibility exists that other standards might exist, so I made the script capable of handling those in the future, if desired.
 
@@ -43,4 +42,6 @@ And you'll get a custom zip file for SeeedStudio. In practice, the only differen
 
 This code isn't elegant (though elegant programming in <b><tt>bash</tt></b>, I submit, ain't easy). It's pretty easy to read, and might be a useful introduction to a few elements of programming bash, but that's not why I wrote it. 
 
-Further, you use this code at your own risk. I wrote it because it's useful to me. I provide it here because it might be useful to you. I have used the script enough to say that it works, but errors creep in and the script has changed since I sent a bunch of Gerbers off to the fab house (as of this writing, that's a few days ago). So please be careful. 
+Further, you use this code at your own risk. I wrote it because it's useful to me. I provide it here because it might be useful to you. I have used the script enough to say that it works, but errors creep in. So please be careful. 
+
+Jesse Hamner, 2016
