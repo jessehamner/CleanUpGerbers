@@ -131,7 +131,8 @@ MINPARAMS=1
 # Lay out some variable defaults:
 RUNANYWAY=0
 ADDCREAM=0
-GERBV=1
+GERBV="1"
+DOIMAKEGERBV="Default is to make a gerbv project file."
 
 # Thanks to user Dave Dopson on StackOverflow for this:
 GVPPATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -165,9 +166,13 @@ then
 fi
 
 # check to see if there's something besides raw space in the argument:
-while getopts cdoszn: OPT; 
+while getopts bcdoszn: OPT; 
 do
     case ${OPT} in
+        b)  
+            DOIMAKEGERBV="User elected to skip making a gerbv project file."
+            GERBV="0"  # do not make the gerbv file 
+            ;;
         c)
             ADDCREAM=1  # should expect SMT (solder paste) layer
             ;;
@@ -213,10 +218,6 @@ bottomsoldermask topsoldermask bottomlayer tcream )
             Q=`echo ${C} | sed 's/\.[a-zA-Z0-9]*$//' `
             echo "Removing any file description following a period gets: ${Q}"
             STUB=${Q}
-            ;;
-        b)  
-            DOIMAKEGERBV="User elected to skip making a gerbv project file."
-            GERBV=0  # do not make the gerbv file 
             ;;
     esac
 done
@@ -355,31 +356,32 @@ else
     echo "No file ${DRI} to delete."
 fi
 
-if [ ${GERBV} -eq 1 ]
+echo""
+echo "----------------------------------"
+echo ${DOIMAKEGERBV}
+
+if [ ${GERBV} = "1" ]
 then
     PYEXEC=`which python`
 
     if [ -e "${GVPPATH}/${GVPSCRIPT}" ]
     then
-        echo""
-        echo "----------------------------------"
         echo "Creating a gerbv project file with a non-random color palette."
-        echo "----------------------------------"
-        echo""
-
         ${PYEXEC} ${GVPPATH}/${GVPSCRIPT} -n ${STUB} -p "`pwd`"
         
     else
-        echo ""
-        echo "----------------------------------"
         echo "*** ERROR *** unable to find python script ${GVPSCRIPT}."
         echo "----------------------------------"
         echo""
         stop
 
     fi
+else 
+    echo "Nothing to do for gerbv project.  "
 fi
 
+echo "----------------------------------"
+echo""
 echo""
 echo "...Done."
 
