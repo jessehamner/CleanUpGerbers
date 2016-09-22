@@ -36,7 +36,7 @@
 # "dirt_cheap_dirty_boards.v1.cam", at
 # http://dirtypcbs.com/about.php
 
-VERSION="1.2"
+VERSION="1.4"
 THISFILE=`basename $0`
 HELP=$(printf "
 -----------------------------------------------------------------------
@@ -68,10 +68,11 @@ ${THISFILE} version ${VERSION}:\n
 # The file accepts a command-line argument stub that must be the same across 
 # all files of a given board Gerber file set.
 # 
-# To use this script, execute it with a command line argument of a layer name 
-# without any abbreviation, e.g. 
+# To use this script, execute it with a command line argument of 
+# '-n' layer-name 
+# without any abbreviation or quotes, e.g. 
 
-${THISFILE} FortyTwo 
+${THISFILE} -n FortyTwo 
 
 # or something similar. 
 #
@@ -97,8 +98,19 @@ ${THISFILE} FortyTwo
 # (not-renamed) file layers from the Gerber file set that the script
 # expects to find. To override this default, use the -zz option.
 #
-# Ignore missing files for the zip: -zz
+# Ignore missing files for the zip: -z
 # 
+# If you want to create layers for 'cream' (solder paste), they are not
+# necessary for creating PCBs, but are useful for creating solder stencils.
+# 
+# Also handle cream layers (convert 'tcream' and 'bcream' suffixes 
+# to 'TCR'/'BCR'): -c
+#
+# The script automatically kicks off a python script to generate a simple
+# gerbv project file. If you do *not* want the file created, use the
+# -b flag.
+#
+#
 # This script works on Mac OS X. It should work on Linux. If you're using it
 # on Windows, then it's up to you to make it work. ;-)
 #
@@ -116,9 +128,18 @@ ${THISFILE} FortyTwo
 # What's the minimum allowable number of parameters?
 MINPARAMS=1
 
+# Lay out some variable defaults:
+RUNANYWAY=0
+ADDCREAM=0
+GERBV=1
+
+# Thanks to user Dave Dopson on StackOverflow for this:
+GVPPATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+GVPSCRIPT="makegvp.py"
+
 # Later the script will compress (zip) the files with the set of file names
 # stored in this string variable:
-ZIP=""
+ZIP=()
 
 # User friendly info string #1:
 WHODOIUSE="No command line argument for drills file suffix. Assuming OSHPark."
@@ -144,20 +165,61 @@ then
 fi
 
 # check to see if there's something besides raw space in the argument:
-if [ -n "$1" ]                  # Tested variable is quoted.
-then
-    echo "Parameter #1 is $1"   # Need quotes to escape the hash (#) symbol
-fi 
+while getopts cdoszn: OPT; 
+do
+    case ${OPT} in
+        c)
+            ADDCREAM=1  # should expect SMT (solder paste) layer
+            ;;
 
-if [ -n "$2" ]                  # Tested variable is quoted.
-then
-    echo "Parameter #2 is $2"   # Need quotes to escape the hash (#) symbol
-fi 
-
-if [ -n "$3" ]                  # Tested variable is quoted.
-then
-    echo "Parameter #3 is $3"   # Need quotes to escape the hash (#) symbol
-fi 
+        d)
+            WHODOIUSE="User selected DirtyPCBs (Dangerous Prototypes) file suffix conventions."
+            DRILLS="TXT"
+#   LAYERS is the list of file names created by the OSHPark CAM file. 
+#   SUFF is the list of file suffixes required by DirtyPCBs's upload regime.
+            LAYERS=(toplayer boardoutline bottomsilkscreen topsilkscreen \
+bottomsoldermask topsoldermask bottomlayer  )
+            SUFF=(GTL GKO GBO GTO GBS GTS GBL )
+            FAB="dirtypcbs"
+            ;;
+        o)
+            WHODOIUSE="User selected OSHPark file suffix conventions."
+            DRILLS="XLN"
+#   LAYERS is the list of file names created by the OSHPark CAM file. 
+#   SUFF is the list of file suffixes required by OSHPark's upload regime.
+            LAYERS=(toplayer boardoutline bottomsilkscreen topsilkscreen \
+bottomsoldermask topsoldermask bottomlayer )
+            SUFF=(GTL GKO GBO GTO GBS GTS GBL  )
+            FAB="oshpark"
+            ;;
+        s)
+            WHODOIUSE="User selected SeeedStudio file suffix conventions."
+            DRILLS="TXT"
+#   LAYERS is the list of file names created by the OSHPark CAM file. 
+#   SUFF is the list of file suffixes required by SeeedStudio's upload regime.
+            LAYERS=(toplayer boardoutline bottomsilkscreen topsilkscreen \
+bottomsoldermask topsoldermask bottomlayer tcream )
+            SUFF=(GTL GKO GBO GTO GBS GTS GBL )
+            FAB="seeedstudio"
+            ;;
+        z)
+            RUNANYWAY=1  # ignore 'file not found' errors
+            ;;
+        n)
+#            echo "-n was triggered; Parameter: $OPTARG" >&2
+# TODO -- note this sed doesn't work for "FILENAME.someotherdescription.QQQ"
+            C=`echo "${OPTARG}" | sed 's/\.[a-zA-Z]\{0,3\}$//'`
+            echo "Removing the file descriptor suffix gets: ${C}"
+            Q=`echo ${C} | sed 's/\.[a-zA-Z0-9]*$//' `
+            echo "Removing any file description following a period gets: ${Q}"
+            STUB=${Q}
+            ;;
+        b)  
+            DOIMAKEGERBV="User elected to skip making a gerbv project file."
+            GERBV=0  # do not make the gerbv file 
+            ;;
+    esac
+done
 
 # Provide help if there's no argument:
 if [ "$1" = "" ] 
@@ -166,91 +228,57 @@ then
     STUB="FortyTwo"
     printf '%s\n' "${HELP}"
     exit
-else
-
-# TODO -- note this sed doesn't work for "FILENAME.someotherdescription.QQQ"
-    C=`echo $1 | sed 's/\.[a-zA-Z]\{0,3\}$//'`
-#    echo "Removing the file descriptor suffix gets: ${C}"
-    Q=`echo ${C} | sed 's/\.[a-zA-Z0-9]*$//' `
-#    echo "Removing any file description following a period gets: ${Q}"
-    STUB=${Q}
 fi
 
-# Does user want to specify a fab house?
-
-if [ "$2" = "-s" -o "$3" = "-s" ]
+# Some notices for the user:
+if [ "${RUNANYWAY}" = "1" ]
 then
-    WHODOIUSE="User selected SeeedStudio file suffix conventions."
-    DRILLS="TXT"
-#   LAYERS is the list of file names created by the OSHPark CAM file. 
-#   SUFF is the list of file suffixes required by SeeedStudio's upload regime.
-    LAYERS=(toplayer boardoutline bottomsilkscreen topsilkscreen \
-bottomsoldermask topsoldermask bottomlayer tcream)
-    SUFF=(GTL GKO GBO GTO GBS GTS GBL TCR )
-    FAB="seeedstudio"
-fi
-
-if [ "$2" = "-o" -o "$3" = "-o" ]
-then
-    WHODOIUSE="User selected OSHPark file suffix conventions."
-    DRILLS="XLN"
-
-#   LAYERS is the list of file names created by the OSHPark CAM file. 
-#   SUFF is the list of file suffixes required by OSHPark's upload regime.
-    LAYERS=(toplayer boardoutline bottomsilkscreen topsilkscreen \
-bottomsoldermask topsoldermask bottomlayer tcream)
-    SUFF=(GTL GKO GBO GTO GBS GTS GBL TCR )
-    FAB="oshpark"
-fi
-
-if [ "$2" = "-d" -o "$3" = "-d" ]
-then
-    WHODOIUSE="User selected DirtyPCBs (Dangerous Prototypes) file suffix conventions."
-    DRILLS="TXT"
-
-#   LAYERS is the list of file names created by the OSHPark CAM file. 
-#   SUFF is the list of file suffixes required by DirtyPCBs's upload regime.
-    LAYERS=(toplayer boardoutline bottomsilkscreen topsilkscreen \
-bottomsoldermask topsoldermask bottomlayer tcream )
-    SUFF=(GTL GKO GBO GTO GBS GTS GBL TCR )
-    FAB="dirtypcbs"
-fi
-
-
-if [ "$3" = "-zz" -o "$2" = "-zz" ]
-then
-    RUNANYWAY=1
     RUNTEXT="User has selected 'keep running' setting; script won't 
 stop if there is a missing file in the required set of 
 Gerbers."
 else
-    RUNANYWAY=0
     RUNTEXT="User has not chosen 'keep running' setting -- the script 
 will halt if it cannot find one of the required Gerber files."
 fi
 
-
-if [ "${FAB}" = "" -o "$2" = "" ] 
+# Well-behaved scripts make sane assumptions about missing arguments:
+if [ "${FAB}" = "" ] 
 then
     DRILLS="XLN"
     FAB="oshpark"
     LAYERS=(toplayer boardoutline bottomsilkscreen topsilkscreen \
-bottomsoldermask topsoldermask bottomlayer tcream)
-    SUFF=(GTL GKO GBO GTO GBS GTS GBL TCR )
+bottomsoldermask topsoldermask bottomlayer )
+    SUFF=(GTL GKO GBO GTO GBS GTS GBL )
 fi
 
+# A bit more info for the user:
+if [ "${ADDCREAM}" = "1" ]
+then
+    LAYERS=("${LAYERS[@]}" "tcream" "bcream" )
+    SUFF=("${SUFF[@]}" "TCR" "BCR" ) 
+    RUNCREAM="User has selected to also modify and compress the cream 
+(solder paste) layers, top and bottom."
+else
+    RUNCREAM="User has not selected to modify or include the cream files
+(if there are any) in the zip archive."
+fi
+
+# Let the user know what is going on:
 echo""
 echo "==================================================================="
 echo""
 echo "${RUNTEXT}"
+echo "${RUNCREAM}"
 echo ""
 echo "${WHODOIUSE}"
 echo""
 echo "Using ${STUB} for file names."
 echo "Will use ${DRILLS} as the suffix for the Excellon drills file."
 echo""
+#echo "Will rename ${LAYERS[@]} to ${SUFF[@]}."
 echo "==================================================================="
 echo""
+
 
 ###########################################################
 # Rename files and remove useless (gpi) files:
@@ -267,10 +295,9 @@ for ((i=0; i < ${#LAYERS[*]} ; i++)); do
     N="${STUB}.${arg}"
     M="${N}.${SUFF[i]}"
     O="${STUB}.${SUFF[i]}"
-#     echo "${O}"
-
-    ZIP="${ZIP} ${O}"
-
+    echo "adding \"${O}\" to the list of files to compress/archive."
+#    ZIP="${ZIP} ${O}"
+    ZIP=("${ZIP[@]}" "${O}" )
 # Curse you, spaces in filenames...
 
 # Rename files to a useful stub and suffix:
@@ -280,19 +307,24 @@ for ((i=0; i < ${#LAYERS[*]} ; i++)); do
         mv "${N}.ger" "${O}"
     elif [ ${RUNANYWAY} == 1  ] 
     then 
-        echo "File ${N}.ger not found; continuing anyway."
+        echo "File '${N}.ger' not found; continuing anyway."
     else 
-        echo "File ${N}.ger not found!"
+        echo""
+        echo "--------------------------------------------------------------"
+        echo "*** ERROR: ***"
+        echo "File '${N}.ger' not found!"
+        echo "--------------------------------------------------------------"
+        echo""
         exit
     fi
     
 # It's highly unlikely anyone wants GPI files:
     if [ -e "${N}.gpi" ]
     then
-        echo "deleting file \"${N}.gpi\""
+        echo "deleting file '${N}.gpi'"
         rm "${N}.gpi"
     else
-        echo "No file ${N}.gpi to remove."
+        echo "No file '${N}.gpi' to remove."
     fi
     echo""
 done
@@ -303,7 +335,6 @@ done
 echo "Renaming the drills file:"
 echo "----------------------------------"
 echo""
-
 
 D="${STUB}.drills.xln"
 DRI="${STUB}.drills.dri"
@@ -324,6 +355,31 @@ else
     echo "No file ${DRI} to delete."
 fi
 
+if [ ${GERBV} -eq 1 ]
+then
+    PYEXEC=`which python`
+
+    if [ -e "${GVPPATH}/${GVPSCRIPT}" ]
+    then
+        echo""
+        echo "----------------------------------"
+        echo "Creating a gerbv project file with a non-random color palette."
+        echo "----------------------------------"
+        echo""
+
+        ${PYEXEC} ${GVPPATH}/${GVPSCRIPT} -n ${STUB} -p "`pwd`"
+        
+    else
+        echo ""
+        echo "----------------------------------"
+        echo "*** ERROR *** unable to find python script ${GVPSCRIPT}."
+        echo "----------------------------------"
+        echo""
+        stop
+
+    fi
+fi
+
 echo""
 echo "...Done."
 
@@ -333,29 +389,51 @@ echo "...Done."
 
 echo""
 echo "Now to zip the files:"
-ZIP="${ZIP} ${STUB}.${DRILLS} " # list of files to include
+ZIP=("${ZIP[@]}" "${STUB}.${DRILLS}" )
+# ZIP="${ZIP} ${STUB}.${DRILLS}" # list of files to include
 D="${STUB}.${FAB}.zip"          # name of compressed archive
 
 # Remove existing ".old" backups (assumes user doesn't care about it):
-echo "Looking for file ${D}..."
+echo "Looking for file '${D}'..."
 
 if [ -e "${D}.old" ]
 then
     echo ""
-    echo "Found ${D}.old -- removing it."
+    echo "Found '${D}.old' -- removing it."
     rm "${D}.old"
 fi
 
 # Keep one generation of existing .zip files (probably created by this script)
 if [ -e "${D}" ]
 then 
-    echo "Renaming ${D} to ${D}.old; "
+    echo "Renaming '${D}' to '${D}.old'; "
     mv "${D}" "${D}.old"
 fi
 
 # Zip up the files
-echo "zip ${D} ${ZIP}"
-zip ${D} ${ZIP}
+for ((i=0; i < ${#LAYERS[*]} ; i++)); do
+    arg="${LAYERS[i]}"
+    N="${STUB}.${arg}"
+    M="${N}.${SUFF[i]}"
+    O="${STUB}.${SUFF[i]}"
+#     echo "${O}"
+
+    if [ ! -e "${O}" ]
+    then
+        echo""
+        echo "--------------------------------------------------------------"
+        echo "*** ERROR: ***"
+        echo "Could not find at least one required file to zip. Exiting now."
+        echo""
+        echo "Missing file: ${O}"
+        echo "--------------------------------------------------------------"
+        echo""
+        exit
+    fi
+done
+
+echo "zip \"${D}\" ${ZIP}"
+zip "$D" "${ZIP[@]}"
 
 echo""
 echo "Script finished."
@@ -364,4 +442,3 @@ echo""
 exit
 
 #<EOF>
-
