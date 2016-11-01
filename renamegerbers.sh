@@ -36,7 +36,23 @@
 # "dirt_cheap_dirty_boards.v1.cam", at
 # http://dirtypcbs.com/about.php
 
-VERSION="1.4"
+# KiCAD names its layers with a more descriptive convention, but
+# one that still must be converted for these fabs.
+#
+# .drl files might be anything, including PostScript
+# -NPTH.drl files are structural drill holes
+# -F.SilkS.gbr
+# -B-SilkS.gbr
+# -F.Paste.gbr
+# -B.Paste.gbr
+# -F.Mask.gbr
+# -B.Mask.gbr
+# -F.Cu.gbr
+# -B.Cu.gbr
+# -Edge.Cuts.gbr
+#
+
+VERSION="1.5"
 THISFILE=`basename $0`
 HELP=$(printf "
 -----------------------------------------------------------------------
@@ -50,7 +66,11 @@ ${THISFILE} version ${VERSION}:\n
 # for EagleCAD 7.2 or higher into GCODE layers and an Excellon drills file 
 # that are named appropriately for OSHPark\'s PCB fab service, or one of
 # a handful of other PCB fab services, if specified by the user. 
-#  
+# 
+# Alternately, using the -k switch, allows the user to take the default set
+# of KiCAD file names and convert them for these PCB fab services.
+# (currently experimental, but getting there).
+#
 # These names come from OSHPark\'s \"Eagle 7.2 and newer\" \"2 layer\" CAM file
 # from http://docs.oshpark.com/design-tools/eagle/generating-custom-gerbers/ 
 # 
@@ -76,6 +96,10 @@ ${THISFILE} -n FortyTwo
 
 # or something similar. 
 #
+# A good template is something like
+
+${THISFILE} -o -c -z -n FortyTwo
+
 # Optionally, the user can include a second command-line argument and 
 # specify whether the Excellon drills file uses OSHPark, SeeedStudio, or 
 # DirtyPCBs Gerber file naming conventions.
@@ -133,6 +157,19 @@ RUNANYWAY=0
 ADDCREAM=0
 GERBV="1"
 DOIMAKEGERBV="Default is to make a gerbv project file."
+WHOMADETHIS="EagleCAD"
+
+# Default layer names for Eagle and KiCAD:
+LAYERS=( toplayer boardoutline bottomsilkscreen topsilkscreen \
+bottomsoldermask topsoldermask bottomlayer )
+SUFF=(GTL GKO GBO GTO GBS GTS GBL )
+CREAMSUFF=( TCR BCR )
+KICADLAYERS=( -F.Cu -Edge.Cuts -B.SilkS -F.SilkS -B.Mask -F.Mask -B.Cu )
+KICADPASTE=( -F.Paste -B.Paste )
+KICADDRILLSUFFIX="drl"
+EAGLECREAM=( tcream bcream )
+LAYERSUFFIX="ger"
+DIT="."
 
 # Thanks to user Dave Dopson on StackOverflow for this:
 GVPPATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -166,9 +203,23 @@ then
 fi
 
 # check to see if there's something besides raw space in the argument:
-while getopts bcdoszn: OPT; 
+while getopts khbcdoszn: OPT; 
 do
     case ${OPT} in
+        k)
+            WHOMADETHIS="KiCAD"
+            LAYERS=(${KICADLAYERS[@]})
+            SUFF=(${SUFF[@]})
+            KICADDRILLS="drl"
+            LAYERSUFFIX="gbr"
+            DIT=""
+            ;;
+        h)
+            echo""
+            STUB="FortyTwo"
+            printf '%s\n' "${HELP}"
+            exit
+            ;;
         b)  
             DOIMAKEGERBV="User elected to skip making a gerbv project file."
             GERBV="0"  # do not make the gerbv file 
@@ -178,13 +229,11 @@ do
             ;;
 
         d)
-            WHODOIUSE="User selected DirtyPCBs (Dangerous Prototypes) file suffix conventions."
+            WHODOIUSE="User selected DirtyPCBs (Dangerous Prototypes) file \
+suffix conventions."
             DRILLS="TXT"
 #   LAYERS is the list of file names created by the OSHPark CAM file. 
 #   SUFF is the list of file suffixes required by DirtyPCBs's upload regime.
-            LAYERS=(toplayer boardoutline bottomsilkscreen topsilkscreen \
-bottomsoldermask topsoldermask bottomlayer  )
-            SUFF=(GTL GKO GBO GTO GBS GTS GBL )
             FAB="dirtypcbs"
             ;;
         o)
@@ -192,9 +241,6 @@ bottomsoldermask topsoldermask bottomlayer  )
             DRILLS="XLN"
 #   LAYERS is the list of file names created by the OSHPark CAM file. 
 #   SUFF is the list of file suffixes required by OSHPark's upload regime.
-            LAYERS=(toplayer boardoutline bottomsilkscreen topsilkscreen \
-bottomsoldermask topsoldermask bottomlayer )
-            SUFF=(GTL GKO GBO GTO GBS GTS GBL  )
             FAB="oshpark"
             ;;
         s)
@@ -202,9 +248,6 @@ bottomsoldermask topsoldermask bottomlayer )
             DRILLS="TXT"
 #   LAYERS is the list of file names created by the OSHPark CAM file. 
 #   SUFF is the list of file suffixes required by SeeedStudio's upload regime.
-            LAYERS=(toplayer boardoutline bottomsilkscreen topsilkscreen \
-bottomsoldermask topsoldermask bottomlayer tcream )
-            SUFF=(GTL GKO GBO GTO GBS GTS GBL )
             FAB="seeedstudio"
             ;;
         z)
@@ -247,16 +290,21 @@ if [ "${FAB}" = "" ]
 then
     DRILLS="XLN"
     FAB="oshpark"
-    LAYERS=(toplayer boardoutline bottomsilkscreen topsilkscreen \
-bottomsoldermask topsoldermask bottomlayer )
-    SUFF=(GTL GKO GBO GTO GBS GTS GBL )
+    LAYERS="${REGULARLAYERS[@]}"
 fi
 
 # A bit more info for the user:
 if [ "${ADDCREAM}" = "1" ]
 then
-    LAYERS=("${LAYERS[@]}" "tcream" "bcream" )
-    SUFF=("${SUFF[@]}" "TCR" "BCR" ) 
+    LAYERS=("${LAYERS[@]}" "${EAGLECREAM[@]}" )
+    SUFF=("${SUFF[@]}" "${CREAMSUFF[@]}" ) 
+
+    if [ "${WHOMADETHIS}" = "KiCAD" ]
+    then
+        LAYERS=("${LAYERS[@]}" "${KICADPASTE[@]}" )
+        SUFF=("${SUFF[@]}" "${CREAMSUFF[@]}" ) 
+    fi
+
     RUNCREAM="User has selected to also modify and compress the cream 
 (solder paste) layers, top and bottom."
 else
@@ -293,7 +341,7 @@ echo""
 for ((i=0; i < ${#LAYERS[*]} ; i++)); do
 
     arg="${LAYERS[i]}"
-    N="${STUB}.${arg}"
+    N="${STUB}${DIT}${arg}"
     M="${N}.${SUFF[i]}"
     O="${STUB}.${SUFF[i]}"
     echo "adding \"${O}\" to the list of files to compress/archive."
@@ -302,18 +350,18 @@ for ((i=0; i < ${#LAYERS[*]} ; i++)); do
 # Curse you, spaces in filenames...
 
 # Rename files to a useful stub and suffix:
-    if [ -e "${N}.ger" ]
+    if [ -e "${N}.${LAYERSUFFIX}" ]
     then
-        echo "Renaming ${N}.ger to ${O};"
-        mv "${N}.ger" "${O}"
+        echo "Renaming ${N}.${LAYERSUFFIX} to ${O};"
+        mv "${N}.${LAYERSUFFIX}" "${O}"
     elif [ ${RUNANYWAY} == 1  ] 
     then 
-        echo "File '${N}.ger' not found; continuing anyway."
+        echo "File '${N}.${LAYERSUFFIX}' not found; continuing anyway."
     else 
         echo""
         echo "--------------------------------------------------------------"
         echo "*** ERROR: ***"
-        echo "File '${N}.ger' not found!"
+        echo "File '${N}.${LAYERSUFFIX}' not found!"
         echo "--------------------------------------------------------------"
         echo""
         exit
@@ -339,6 +387,12 @@ echo""
 
 D="${STUB}.drills.xln"
 DRI="${STUB}.drills.dri"
+
+if [ "${WHOMADETHIS}" = "KiCAD" ]
+then
+        D="${STUB}.${KICADDRILLS}"
+fi
+
 
 if [ -e "${D}" ]
 then 
