@@ -52,7 +52,8 @@ Gerber files are found", metavar="PATH" )
     arguments = parser.parse_args()
     args = vars(arguments)
     
-    print("Looks like the input filename argument is: " + str(args['filestub']))
+    print("Looks like the input filename argument is: %s" % str(args['filestub']))
+    print("And the input path argument is: %s" % str(args['path']))
 
     return (args)
 
@@ -98,6 +99,7 @@ def oneLine (key, color, layer, namestub,verbose):
 # End of function descriptions
 
 # parse arguments:
+print("Parsing arguments.")
 arguments = parseOptions()
 
 inputfilename = arguments['filestub']

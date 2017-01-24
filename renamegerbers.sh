@@ -52,8 +52,8 @@
 # -Edge.Cuts.gbr
 #
 
-VERSION="1.5"
-THISFILE=`basename $0`
+VERSION="1.6"
+THISFILE=$(basename $0)
 HELP=$(printf "
 -----------------------------------------------------------------------
 ${THISFILE} version ${VERSION}:\n
@@ -113,7 +113,7 @@ ${THISFILE} -o -c -z -n FortyTwo
 # automatically formats the file name for their fab, cutting out the 
 # work of renaming the files. 
 #
-# This script currently assumes you have  made your Gerbers with the OSHPark 
+# This script currently assumes you have made your Gerbers with the OSHPark 
 # CAM file. This assumption, or any random CAM file, may not produce acceptable
 # results and only you are responsible for ensuring that the files work for the 
 # fab to which you are sending the files.
@@ -256,11 +256,13 @@ suffix conventions."
         n)
 #            echo "-n was triggered; Parameter: $OPTARG" >&2
 # TODO -- note this sed doesn't work for "FILENAME.someotherdescription.QQQ"
-            C=`echo "${OPTARG}" | sed 's/\.[a-zA-Z]\{0,3\}$//'`
+            C=$(echo "${OPTARG}" | sed 's/\.[a-zA-Z]\{0,3\}$//')
             echo "Removing the file descriptor suffix gets: ${C}"
-            Q=`echo ${C} | sed 's/\.[a-zA-Z0-9]*$//' `
+            Q=$(echo "${C}" | sed 's/\.[a-zA-Z0-9]*$//')
             echo "Removing any file description following a period gets: ${Q}"
-            STUB=${Q}
+#            C=$(echo "${Q}" | sed 's/ /_/g' )
+#            echo "Replacing whitespace with underscores gets: ${C}"
+            STUB=${C}
             ;;
     esac
 done
@@ -337,7 +339,7 @@ echo "Renaming PCB layers:"
 echo "----------------------------------"
 echo""
 
-# could use `seq` here, but nah:
+# could use $(seq) here, but nah:
 for ((i=0; i < ${#LAYERS[*]} ; i++)); do
 
     arg="${LAYERS[i]}"
@@ -397,7 +399,7 @@ fi
 if [ -e "${D}" ]
 then 
     echo "Renaming ${D} to ${STUB}.${DRILLS}; "
-    mv "${D}" "${STUB}.${DRILLS}"
+    cp "${D}" "${STUB}.${DRILLS}"
 else
     echo "No file ${D} to delete."
 fi
@@ -416,13 +418,16 @@ echo ${DOIMAKEGERBV}
 
 if [ ${GERBV} = "1" ]
 then
-    PYEXEC=`which python`
+    PYEXEC=$(which python)
 
     if [ -e "${GVPPATH}/${GVPSCRIPT}" ]
     then
         echo "Creating a gerbv project file with a non-random color palette."
-        ${PYEXEC} ${GVPPATH}/${GVPSCRIPT} -n ${STUB} -p "`pwd`"
-        
+        echo""
+        echo "Executing:"
+        echo "${PYEXEC} ${GVPPATH}/${GVPSCRIPT} -n \"${STUB}\" -p \"$(pwd)\""
+        ${PYEXEC} "${GVPPATH}/${GVPSCRIPT}" -n "\"${STUB}\"" -p "$(pwd)"
+ 
     else
         echo "*** ERROR *** unable to find python script ${GVPSCRIPT}."
         echo "----------------------------------"
@@ -431,7 +436,7 @@ then
 
     fi
 else 
-    echo "Nothing to do for gerbv project.  "
+    echo "Nothing to do for gerbv project."
 fi
 
 echo "----------------------------------"
