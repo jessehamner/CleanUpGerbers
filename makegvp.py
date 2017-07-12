@@ -15,13 +15,13 @@ path="/you/need/to/declare/a/path"
 colordict = [ \
         ["GBL", 1, "12850 38550 12850"], \
         ["GTL", 1, "12850 38550 12850"], \
-        ["BCR", 1, "65535 41384 20091"], \
-        ["GBS", 1, "63106 23721 55629"], \
-        ["GTS", 1, "63106 23721 55629"], \
-        ["TCR", 1, "22139 24808 65535"], \
+        ["BCR", 1, "56540 41120 15420"], \
+        ["GBS", 1, "48830 43690 64226"], \
+        ["GTS", 1, "48830 43690 64226"], \
+        ["TCR", 1, "56540 41120 15420"], \
         ["GBO", 1, "61287 61285 35400"], \
+        ["GTO", 1, "65535 65024 56842"], \
         ["GKO", 2, "0 48830 48830"], \
-        ["GTO", 1, "65535 65535 65535"], \
         ["XLN", 2, "0 0 0"] \
         ]
 
@@ -31,8 +31,10 @@ verbose=0
 
 
 def parseOptions():
-    """Reads the user's command-line input for determining what to call the \
-file and the directory path location."""
+    """
+    Reads the user's command-line input for determining what to call the
+    file and the directory path location.
+    """
     if (sys.argv[0] == ""):
         print("WARNING: you need to provide a filename for the output file.")
         sys.exit()
@@ -103,6 +105,10 @@ print("Parsing arguments.")
 arguments = parseOptions()
 
 inputfilename = arguments['filestub']
+#inputfilename = re.sub(' ','_', inputfilename)
+inputfilename = re.sub('\"','', inputfilename)
+print("Output file name will be:\n%s.gvp" % inputfilename)
+
 path = arguments['path']
 path = re.sub('\/$','', path)
 
